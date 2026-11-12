@@ -233,3 +233,68 @@ export async function getAnimeImages(malId: number, isList = false): Promise<Ani
     return { result: null, log };
   }
 }
+
+const SEASON_CHAIN_QUERY = `
+  query ($id: Int, $idMal: Int) {
+    Media(id: $id, idMal: $idMal, type: ANIME) {
+      id idMal format
+      title { romaji english }
+      relations { edges { relationType node { id idMal format title { romaji english } } } }
+    }
+  }`;
+
+export interface SeasonChainEntry { anilistId: number; malId: number | null; title: string; }
+
+// Season chain for one anime: walk PREQUEL edges back to the first season,
+// then SEQUEL edges forward. Used by the frontend to group episode cards
+// under Season 1 / Season 2 / ... blocks inside a single title page.
+export async function getSeasonChain(start: { id?: number; idMal?: number }): Promise<SeasonChainEntry[]> {
+  const cacheKey = `anilist:chain:${start.id ?? ''}:${start.idMal ?? ''}`;
+  const cached = cacheGet<SeasonChainEntry[]>(cacheKey);
+  if (cached) return cached;
+
+  async function fetchMedia(vars: { id?: number; idMal?: number }): Promise<any> {
+    const res = await anilistClient.post('', { query: SEASON_CHAIN_QUERY, variables: vars });
+    if (res.data?.errors?.length) throw new Error('AniList GraphQL error: ' + JSON.stringify(res.data.errors).slice(0, 200));
+    return res.data?.data?.Media ?? null;
+  }
+  const nodeOf = (m: any): SeasonChainEntry => ({ anilistId: m.id, malId: m.idMal ?? null, title: (m.title && (m.title.english || m.title.romaji)) || '' });
+  const rel = (m: any, type: string): any => {
+    const edges = (m && m.relations && m.relations.edges) || [];
+    for (const e of edges) {
+      if (e.relationType === type && e.node && ['TV', 'TV_SHORT', 'ONA'].indexOf(e.node.format) >= 0) return e.node;
+    }
+    return null;
+  };
+
+  const startMedia = await fetchMedia(start.id ? { id: start.id } : { idMal: start.idMal });
+  if (!startMedia) return [];
+
+  let root = startMedia;
+  let guard = 0;
+  let pre: any;
+  while ((pre = rel(root, 'PREQUEL')) && guard++ < 5) {
+    const pm = await fetchMedia({ id: pre.id }).catch(() => null);
+    if (!pm) break;
+    root = pm;
+  }
+
+  const chain: SeasonChainEntry[] = [nodeOf(root)];
+  const seen = new Set<number>([root.id]);
+  const firstSeq = rel(root, 'SEQUEL');
+  if (firstSeq && !seen.has(firstSeq.id)) { seen.add(firstSeq.id); chain.push(nodeOf(firstSeq)); }
+
+  let lastId = chain[chain.length - 1].anilistId;
+  while (chain.length < 8) {
+    const m = await fetchMedia({ id: lastId }).catch(() => null);
+    if (!m) break;
+    const nx = rel(m, 'SEQUEL');
+    if (!nx || seen.has(nx.id)) break;
+    seen.add(nx.id);
+    chain.push(nodeOf(nx));
+    lastId = nx.id;
+  }
+
+  cacheSet(cacheKey, chain, 'mapping');
+  return chain;
+}

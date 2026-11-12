@@ -10,7 +10,7 @@ import { getAnikotoEpisodes, getAnikotoEpisodesById, getAnikotoServers, getAniko
 import { getMegaPlayStream } from './scrapers/megaplay';
 import { getDesidubEpisodes, getDesidubServers, getDesidubStream } from './scrapers/desidub';
 import { getAnimeDetails, getEpisodes as getMalEpisodes, getEpisode as getMalEpisode, getAllEpisodes as getAllMalEpisodes, getCharacters, getCharacterDetails, getAnimePictures, getCharacterPictures, getAnimeThemes, getAnimeVideos, getRecommendations, searchAnime, getExternalLinks, getStreamingPlatforms, debugSearchHtml, MalEpisode } from './scrapers/mal';
-import { getSeasonNow, getTopBanners, getStreamingEpisodes, AniListStreamingEpisode, getAnimeImages as getAnilistAnimeImages } from './scrapers/anilist';
+import { getSeasonNow, getTopBanners, getStreamingEpisodes, AniListStreamingEpisode, getAnimeImages as getAnilistAnimeImages, getSeasonChain } from './scrapers/anilist';
 import { getEpisodeThumbnail as getTmdbEpisodeThumbnail, getEpisodeData as getTmdbEpisodeData, getShowEpisodeCount as getTmdbEpisodeCount, getAnimeImages as getTmdbAnimeImages, extractSeasonHint } from './scrapers/tmdb';
 import { getKitsuAnimeId, getEpisodeThumbnail as getKitsuEpisodeThumbnail, getEpisodeData as getKitsuEpisodeData, getAnimeImages as getKitsuAnimeImages } from './scrapers/kitsu';
 
@@ -194,6 +194,17 @@ router.get('/info', async (req: Request, res: Response) => {
 // IDs, used by /servers and /watch to locate a playable episode). Not to be
 // confused with the singular /episode route further down, which is the
 // MAL-metadata + thumbnail combined lookup.
+router.get('/seasons', async (req: Request, res: Response) => {
+  const { anilistId, malId } = req.query;
+  if (!anilistId && !malId) return res.status(400).json({ error: 'Provide ?anilistId= or ?malId=' });
+  try {
+    const seasons = await getSeasonChain(anilistId ? { id: parseInt(anilistId as string, 10) } : { idMal: parseInt(malId as string, 10) });
+    return res.json({ count: seasons.length, seasons });
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
 router.get('/episodes', async (req: Request, res: Response) => {
   const { anilistId, malId, source = 'anikoto', heavenId } = req.query;
   if (!anilistId && !malId && !(source === 'animeheaven' && heavenId)) return res.status(400).json({ error: 'Provide ?anilistId= or ?malId=, or ?heavenId= for AnimeHeaven' });
