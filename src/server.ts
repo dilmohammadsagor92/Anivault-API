@@ -42,7 +42,7 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-if (!process.env.VERCEL) // Keep-alive: on Render's free tier the service sleeps after ~15 min without
+// Keep-alive: on Render's free tier the service sleeps after ~15 min without
 // inbound traffic, and every cold start also wipes the in-memory caches.
 // Ping our own public URL every 10 minutes so the service (and its caches)
 // stay warm. RENDER_EXTERNAL_URL is provided by Render automatically.
@@ -53,7 +53,7 @@ if (SELF_URL) {
   }, 10 * 60 * 1000);
 }
 
-app.listen(PORT, () => {
+if (!process.env.VERCEL) app.listen(PORT, () => {
   console.log(`\n🟢 AniVault API running on http://localhost:${PORT}`);
   console.log(`📄 Docs + Tester: http://localhost:${PORT}/`);
   console.log(`🔗 API base:      http://localhost:${PORT}/api\n`);
