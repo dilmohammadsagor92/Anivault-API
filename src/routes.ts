@@ -170,8 +170,13 @@ router.get('/info', async (req: Request, res: Response) => {
     const info = await resolveSiteIds(anilistId as string, malId as string);
     if (!info) return res.status(404).json({ error: 'Anime not found' });
 
-    const anikoto = await fetchEpisodes('anikoto', info);
-    const episodeCount = anikoto.error ? null : anikoto.episodes.length;
+    // episodeCount needs a full extra Anikoto scrape -- only do it on request
+    // (?count=1); the streaming frontend does not use it and it slowed /info.
+    let episodeCount: number | null = null;
+    if (req.query.count === '1') {
+      const anikoto = await fetchEpisodes('anikoto', info);
+      episodeCount = anikoto.error ? null : anikoto.episodes.length;
+    }
 
     return res.json({
       anilistId: info.anilistId,

@@ -4,7 +4,7 @@ const cache = new NodeCache({ useClones: false });
 
 const TTL = {
   mapping: parseInt(process.env.CACHE_TTL_MAPPING || '86400'),   // 24h
-  episodes: parseInt(process.env.CACHE_TTL_EPISODES || '3600'),  // 1h
+  episodes: parseInt(process.env.CACHE_TTL_EPISODES || '21600'),  // 6h
   stream: parseInt(process.env.CACHE_TTL_STREAM || '300'),       // 5min
 };
 
